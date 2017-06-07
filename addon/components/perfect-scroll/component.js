@@ -29,6 +29,7 @@ const psEvents = [
 
 
 export default Ember.Component.extend({
+  classNames: "ps-content",
   layout: layout,
 
   // Internal id for element
@@ -57,8 +58,8 @@ export default Ember.Component.extend({
     set(key, value) {
       set(this, `_${key}`, value);
       run.schedule('afterRender', () => {
-        get(this, '_scrollElement')[key] = value;
-        window.Ps.update(get(this, '_scrollElement'));
+        this.element[key] = value;
+        window.Ps.update(this.element);
       });
     }
   }),
@@ -70,8 +71,8 @@ export default Ember.Component.extend({
     set(key, value) {
       set(this, `_${key}`, value);
       run.schedule('afterRender', () => {
-        get(this, '_scrollElement')[key] = value;
-        window.Ps.update(get(this, '_scrollElement'));
+        this.element[key] = value;
+        window.Ps.update(this.element);
       });
     }
   }),
@@ -83,15 +84,26 @@ export default Ember.Component.extend({
     });
   },
 
+
+  init(){
+    this._super(...arguments);
+
+    if (isEmpty(get(this, 'scrollId'))) {
+      set(this, 'scrollId', `perfect-scroll-${guidFor(this)}`);
+    }
+    set(this, 'elementId', get(this, 'scrollId'));
+  },
+
   didInsertElement() {
     this._super(...arguments);
 
     run.schedule('afterRender', () => {
-      window.Ps.initialize($(`#${get(this, 'eId')}`)[0], this._getOptions());
+      window.Ps.initialize(this.element, this._getOptions());
 
       // TODO: This should possibly be put somewhere else.
-      // Ideally, this handler would wrap any ps-scroll-y or -x handlers and call them after it's done.
-      $(get(this, "_scrollElement")).on('ps-scroll-y ps-scroll-x', (e) => {
+      // Ideally, this handler would wrap any ps-scroll-y or -x handlers that are passed to this component, and then call them after it's done.
+      // This is necessary to update the scrollTop and scrollLeft bound properties
+      this.$().on('ps-scroll-y ps-scroll-x', (e) => {
         get(this, "scrolled").call(this, e);
       });
 
@@ -100,35 +112,19 @@ export default Ember.Component.extend({
   },
 
   didRender() {
-    let el = document.getElementById(get(this, 'eId'));
-    window.Ps.update(el);
+    window.Ps.update(this.element);
   },
 
   willDestroyElement() {
     this._super(...arguments);
 
-    let element = document.getElementById(get(this, 'eId'));
 
-    if (element) {
-      window.Ps.destroy(element);
+    if (this.element) {
+      window.Ps.destroy(this.element);
     }
 
     this.unbindEvents();
   },
-
-  eId: computed('scrollId', {
-    get() {
-      if (isEmpty(get(this, 'scrollId'))) {
-        set(this, 'scrollId', `perfect-scroll-${guidFor(this)}`);
-      }
-
-      return get(this, 'scrollId');
-    }
-  }).readOnly(),
-
-  _scrollElement: Ember.computed('eId', function() {
-    return document.getElementById(get(this, 'eId'));
-  }),
 
   /**
    * Binds perfect-scrollbar events to function
@@ -137,14 +133,13 @@ export default Ember.Component.extend({
   bindEvents() {
     let self = this;
     let mapping = {};
-    let el = document.getElementById(get(this, 'eId'));
 
     psEvents.map(evt => {
       mapping[evt] = function() {
         self.callEvent(evt);
       };
 
-      $(el).on(evt, mapping[evt].bind(this));
+      this.$().on(evt, mapping[evt].bind(this));
     });
 
     set(this, 'mapping', mapping);
@@ -165,10 +160,9 @@ export default Ember.Component.extend({
    */
   unbindEvents() {
     let mapping = get(this, 'mapping');
-    let el = document.getElementById(get(this, 'eId'));
 
     psEvents.map(evt => {
-      $(el).off(evt, run.cancel(this, mapping[evt].bind(this)));
+      this.$().off(evt, run.cancel(this, mapping[evt].bind(this)));
     });
   },
 
